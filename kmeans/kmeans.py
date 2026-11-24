@@ -1,10 +1,10 @@
-"""K-Means (algorytm Lloyda) z inicjalizacją Forgy i Random Partition."""
+"""K-Means (algorytm Lloyda) z inicjalizacją Forgy, Random Partition i k-means++."""
 
 import numpy as np
 
 
 class KMeans:
-    def __init__(self, n_clusters=8, init="forgy", n_init=10, max_iter=300, random_state=None):
+    def __init__(self, n_clusters=8, init="k-means++", n_init=10, max_iter=300, random_state=None):
         self.n_clusters = n_clusters
         self.init = init
         self.n_init = n_init
@@ -97,7 +97,20 @@ class KMeans:
                 X[labels == i].mean(axis=0) if np.any(labels == i) else X[rng.integers(n)]
                 for i in range(k)
             ])
-        raise ValueError(f"Nieznana inicjalizacja: {self.init}")
+        return self._kmeans_plus_plus(X, rng)
+
+    def _kmeans_plus_plus(self, X, rng):
+        n = len(X)
+        centroids = [X[rng.integers(n)]]
+        # D(x)^2 do najbliższego wybranego środka
+        d2 = ((X - centroids[0]) ** 2).sum(axis=1)
+        while len(centroids) < self.n_clusters:
+            # losowanie z p ~ D(x)^2
+            total = d2.sum()
+            idx = rng.choice(n, p=d2 / total) if total > 0 else rng.integers(n)
+            centroids.append(X[idx])
+            d2 = np.minimum(d2, ((X - X[idx]) ** 2).sum(axis=1))
+        return np.array(centroids)
 
     def _validate(self, X, fitted=False):
         X = np.asarray(X, dtype=float)
@@ -110,8 +123,8 @@ class KMeans:
         if self.n_init < 1 or self.max_iter < 1:
             raise ValueError("n_init i max_iter muszą być >= 1")
         if isinstance(self.init, str):
-            if self.init not in ("forgy", "random_partition"):
-                raise ValueError("init: 'forgy', 'random_partition' albo tablica centroidów")
+            if self.init not in ("k-means++", "forgy", "random_partition"):
+                raise ValueError("init: 'k-means++', 'forgy', 'random_partition' albo tablica centroidów")
         elif np.shape(self.init) != (self.n_clusters, X.shape[1]):
             raise ValueError("Tablica init musi mieć kształt (n_clusters, n_cech)")
         return X
